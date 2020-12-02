@@ -1,0 +1,176 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version = "3.12")
+
+if (!require(DiffBind))
+  BiocManager::install("DiffBind")
+library(DiffBind)  
+
+library(GenomicFeatures)
+
+if (!require(ChIPseeker))
+  BiocManager::install("ChIPseeker")
+library(ChIPseeker) 
+
+if (!require(TxDb.Hsapiens.UCSC.hg19.knownGene))
+  BiocManager::install("TxDb.Hsapiens.UCSC.hg19.knownGene")
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+```
+
+Read in sampleSheet
+
+```{r}
+wd <- "/Users/anastasiia_hry/Documents/MPIP/SIgne/08_peaks"
+setwd(wd)
+
+samples <- read.csv2("chipseq_diffbind_sample_sheet_local.csv", head = T)[, -11]
+
+head(samples)
+```
+3) Creation of a union peak list/set with DiffBind: 
+  a) Peak filtering
+  b) Sample filtering: Some samples have very low peaks.
+  c) union list
+https://bioconductor.org/packages/release/bioc/html/DiffBind.html
+
+Currently, peaks are called for each sample individually. Next, you need to determine which peaks are “valid”, e.g. a peak that was called in at least 10% of the samples is valid. Note: VALID peaks should first be assessed separately for DEX and VEHICLE conditions and for the analysis the union of these lists should  be used.
+
+4) Differential analysis. Usually, in ChIPseq you have an input or IgG control  and you would use special tools for the differential analysis. This design is different and differential analysis can be carried out very similar to the corresponding RNAseq data analysis in DEseq or edgeR for treatment condition (veh vs. dex). You can also run differential analysis in DiffBind (which calls DeSeq)
+
+5) Allele-specific binding: generate allele-specific count matrix and perform RasQUAL (R-package)
+
+Create and save a DBA object
+
+```{r}
+dba.db <- dba(sampleSheet = samples)
+dba.save(dba.db, file = "Signe_ChIPseq", dir = paste(wd, "Result", sep = "/"))
+```
+
+```{r}
+dba.db # 24'124 consensus sites were identified
+```
+
+```{r}
+dba.overlap(dba.db, dba.db$masks$dex, mode=DBA_OLAP_RATE)
+```
+47 consensus peaksets were identified for dex group, 37'757 of which is the total number of unique sites, 21'482 - the number of unique sites appearing in at least two peaksets, 16'679 -  the number of sites overlapping in at least three peaksets, etc.
+
+```{r}
+dba.overlap(dba.db, dba.db$masks$veh, mode=DBA_OLAP_RATE)
+```
+48 consensus peaksets were identified for dex group, 21'486 of which is the total number of unique sites, 8'772 - the number of unique sites appearing in at least two peaksets, 5'760 -  the number of sites overlapping in at least three peaksets, etc.
+
+----
+
+Create separate consensus peaksets for each of the two treatments (veh and dex), then take the union of these two peaksets as the overall consensus
+
+Build consensus per TREATMENT condition (TREATMENT defined in sample sheet). 
+
+```{r}
+dba.consensus <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT, DBA_CONDITION), minOverlap = 0.1)
+```
+
+Requiring that consensus peaks overlap in at least 10% of the samples in each group results in 3039 sites for the veh group and 11'128 sites for the dex group:
+
+```{r}
+dba.plotVenn(dba.consensus, dba.consensus$masks$Consensus)
+```
+
+Sort samples by the number of peaks
+```{r}
+sort(sapply(dba.consensus$peaks, nrow))
+```
+Merge peakset list
+
+When forming the global binding matrix consensus peaksets, DiffBind first identifies all unique
+peaks amongst the relevant peaksets. As part of this process, it merges overlapping peaks,
+replacing them with a single peak representing the narrowest region that covers all peaks
+that overlap by at least one base. 
+
+Add a consensus peakset (derived from overlapping peaks in peaksets already present) :
+
+```{r}
+dba.consensus.merge <- dba.peakset(dba.consensus, peaks = dba.consensus$masks$Consensus, minOverlap = 1)
+```
+
+Save union peakset :
+
+```{r}
+n             <- length(dba.consensus.merge$peaks)
+union.peakset <- dba.consensus.merge$peaks[[n]][,1:3]
+write.table(union.peakset, file = "Result/union_peakset.tsv", sep = "\t", row.names = F, col.names = F, quote = F)
+```
+
+Generate a binding affinity matrix based on read count scores :
+
+```{r}
+dba.count.db <- dba.count(dba.db, peaks = union.peakset, bRemoveDuplicates = F)  
+save(dba.count.db, file = "Result/dba_count.Rda")
+```
+
+Plot
+```{r}
+plot(dba.count.db)
+```
+
+Establishing contrast
+
+Next we have to let DiffBind know how we want to group our samples. In our case we will group based on treatment. We also have to set the minMembers parameter to 47 since we have 47 samples in dex and 48 in veh group.
+
+```{r}
+# DBdata <- dba.contrast(dba.count.db, categories = c(DBA_TREATMENT, DBA_CONDITION), minMembers = 47)
+# DBdata
+```
+
+Differential analysis :
+
+```{r}
+dba        <- dba.analyze(dba.count.db, method = DBA_DESEQ2)
+dba 
+```
+
+```{r}
+dba.plotMA(dba)
+dba.plotVolcano(dba)
+```
+```{r}
+dba.edger <- dba.analyze(dba.count.db, method = DBA_EDGER)
+dba.edger
+```
+
+
+```{r}
+dba.report <- dba.report(dba,  th = 1, bNormalized=T )
+```
+
+```{r}
+########
+# EXPORT quantification for edgeR
+########
+
+counts = do.call( "cbind" ,lapply(1:length(dba$peaks), function(x) { dba$peaks[[x]]$Reads })) 
+```
+
+```{r}
+# ANNOTATE the peaks 
+########
+
+# load libraries ...
+
+# build reference - should be the same as used to quantify RNA seq
+#  This is the refeernce anno used: /ngs/references/human/GRCh38/Homo_sapiens.GRCh38.97.gtf
+ref.annot.fn <- paste(wd, "Homo_sapiens.GRCh38.97.gtf", sep = "/")
+
+txDb <- makeTxDbFromGFF(ref.annot.fn, format = "gtf",
+                           organism = "Homo sapiens",
+                           chrominfo = NULL,
+                           dbxrefTag = "gene_id")
+# annotate all peaks
+dba.anno <- ChIPseeker::annotatePeak(dba.report, tssRegion=c(-3000, 150), TxDb=txDb, level = "transcript", overlap = "all" )
+```
