@@ -1,5 +1,6 @@
 ---
-title: 'Allel spec '
+title: 'Allele-specific ChiPseq analysis'
+author: 'Anastasiia Hryhorzhevska'
 output:
   pdf_document: default
   html_document: default
@@ -10,7 +11,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-3) Creation of a union peak list/set with DiffBind: 
+1) Creation of a union peak list/set with DiffBind: 
   a) Peak filtering
   b) Sample filtering: Some samples have very low peaks.
   c) union list
@@ -18,9 +19,9 @@ https://bioconductor.org/packages/release/bioc/html/DiffBind.html
 
 Currently, peaks are called for each sample individually. Next, you need to determine which peaks are “valid”, e.g. a peak that was called in at least 10% of the samples is valid. Note: VALID peaks should first be assessed separately for DEX and VEHICLE conditions and for the analysis the union of these lists should  be used.
 
-4) Differential analysis. Usually, in ChIPseq you have an input or IgG control  and you would use special tools for the differential analysis. This design is different and differential analysis can be carried out very similar to the corresponding RNAseq data analysis in DEseq or edgeR for treatment condition (veh vs. dex). You can also run differential analysis in DiffBind (which calls DeSeq)
+2) Differential analysis. Usually, in ChIPseq you have an input or IgG control  and you would use special tools for the differential analysis. This design is different and differential analysis can be carried out very similar to the corresponding RNAseq data analysis in DEseq or edgeR for treatment condition (veh vs. dex). You can also run differential analysis in DiffBind (which calls DeSeq)
 
-5) Allele-specific binding: generate allele-specific count matrix and perform RasQUAL (R-package)
+3) Allele-specific binding: generate allele-specific count matrix and perform RasQUAL (R-package)
 
 ```{r, warning=FALSE, message=FALSE}
 if (!requireNamespace("BiocManager", quietly = TRUE)){
@@ -48,14 +49,16 @@ library(dplyr)
 
 ```
 
-Obtaining the sites significantly differentially bound (DB) between the dex samples and veh samples can be done in a five-step script:
+```{r, include=FALSE}
+# Obtaining the sites significantly differentially bound (DB) between the dex samples and veh samples can be done in a five-step script:
 
-> data = dba(sampleSheet="samplesheeet.csv")
-> data = dba.count(data)
-> data = dba.contrast(data, categories=DBA_TREATMENT)
-> data = dba.analyze(data)
-> data.DB = dba.report(data)
+# > data = dba(sampleSheet="samplesheeet.csv")
+# > data = dba.count(data)
+# > data = dba.contrast(data, categories=DBA_TREATMENT)
+# > data = dba.analyze(data)
+# > data.DB = dba.report(data)
 
+```
 1. Read in sampleSheet
 
 ```{r, warning=FALSE}
@@ -132,7 +135,7 @@ Add a consensus peakset (derived from overlapping peaks in peaksets already pres
 
 ```{r}
 dba.consensus.merge <- dba.peakset(dba.consensus, peaks = dba.consensus$masks$Consensus, minOverlap = 1)
-dba.consensus.merge 
+dba.consensus.merge
 ```
 
 Save union peakset :
@@ -146,7 +149,7 @@ write.table(union.peakset, file = paste0(result.dir.fn, "union_peakset.tsv"), se
 
 6. Generate a binding affinity matrix based on read count scores :
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 dba.count.db <- dba.count(dba.db, peaks = union.peakset, bRemoveDuplicates = F, score = DBA_SCORE_READS)  
 save(dba.count.db, file = paste0(result.dir.fn, "dba_count.Rda"))
 
@@ -168,10 +171,12 @@ dba.contrast
 8.1. Normalization
 
 A windowing approach that identifies deferentially enriched regions (from csaw package)
-```{r}
+```{r, message=FALSE, warning=FALSE}
 # dba.contrast.norm <- dba.normalize(dba.contrast, normalize = DBA_NORM_LIB, library=DBA_LIBSIZE_PEAKREADS, method = DBA_ALL_METHODS)
 dba.contrast.norm <- dba.normalize(dba.contrast, normalize = DBA_NORM_LIB, background = T, method = DBA_ALL_METHODS)
 dba.dif.anal.norm <- dba.analyze(dba.contrast.norm, method = DBA_ALL_METHODS)
+```
+```{r}
 dba.dif.anal.norm
 ```
 Result :
@@ -235,7 +240,7 @@ dba.plotVenn(dba.dif.anal, contrast = 2, method = DBA_ALL_METHODS, main = "Bindi
 
 
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 # dba.dif.anal.overlap <- dba.overlap(dba.dif.anal, mode = DBA_OLAP_PEAKS, 
 #                           contrast = 2, method=dba.dif.anal$config$AnalysisMethod, th = dba.dif.anal$config$th, 
 #                           bUsePval = dba.dif.anal$config$bUsePval, 
@@ -255,14 +260,14 @@ dba.dif.anal.deseq$config$th <- 0.10
 dex.report <- dba.report(dba.dif.anal.deseq, contrast = 2, method = DBA_DESEQ2, th = dba.dif.anal.deseq$config$th, 
                                                 bCounts = T, bCalled = T) # file = paste0(result.dir.fn, "dex_deseq_report.csv"))
 write.csv2(dex.report, file = paste0(result.dir.fn, "dex_deseq_report.csv"))
-dex.report
+head(dex.report)
 
 ```
 - "Conc" shows the mean read concentration over all the samples (the default calculation uses log2 normalized read counts)
 - "Conc_dex" - the mean concentration over the samples in dex group
 - "Conc_veh" - the mean concentration over the samples in veh group. 
-- "Fold" - the log fold changes (LFCs) between the two groups. A positive value indicates increased binding affinity in the DEX group, and a negative
-value indicates increased binding affinity in the VEH group. 
+- "Fold" - the log fold changes (LFCs) between the two groups. A positive value indicates increased binding affinity in the DEX group, and a negative value indicates increased binding affinity in the VEH group. 
+- normalized count data for individual samples
 
 The number of differentially bound sites that have enriched in DEX samples :
 
@@ -292,7 +297,7 @@ dex.anno.report <- ChIPseeker::annotatePeak(dex.report, tssRegion = c(-1000, 100
 dex.anno.report
 ```
 
-Extract annoted count matrix for RASQUAL
+12. Extract annoted count matrix for RASQUAL
 
 ```{r}
 annotation.df   <- as.data.frame(dex.anno.report@anno)
@@ -302,39 +307,41 @@ anno.rasqual.df <- annotation.df[,c(113, 12:106)] # take only geneID and sampleI
 write.csv2(anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual.csv"))
 ```
 
-12. Plotting
+13. Plotting
 
-12.1 PCA
+13.1 PCA
 
 ```{r}
 dba.plotPCA(dba.dif.anal.deseq, method = DBA_DESEQ2, attributes = DBA_CONDITION, label = DBA_TREATMENT, contrast = 2)
 ```
-12.2. Volcano 
+13.2. Volcano 
 ```{r}
 dba.plotVolcano(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 ```
-12.3. Boxplot
+13.3. Boxplot
 ```{r}
 dba.plotBox(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 ```
 
-13. Export results
+14. Export only dex enriched results
 
 ```{r warning=FALSE, include=FALSE}
 # out.edger <- as.data.frame(dex.report)
 # write.table(out.edger, file = paste0(result.dir.fn, "dex_edge_report.txt"), sep = "\t", quote = F, row.names = F)
 ```
 
-Write BED files for each set of significant regions identified by DeSeq, separating them based on the gain or loss of enrichment. 
+Write files for each set of significant regions identified by DeSeq, separating them based on the gain or loss of enrichment. 
 
-```{r, include=FALSE}
+```{r, warning=FALSE}
 dex.enrich.df <- annotation.df  %>% filter(FDR < 0.1 & Fold > 0) 
 
-write.table(dex.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated_only_dex_echriched.csv"), sep = "\t", quote = F, row.names = F, col.names = F)
+write.csv2(dex.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated_only_dex_echriched.csv"))
 
 dex.enrich.anno.rasqual.df <- dex.enrich.df[,c(113, 12:106)] # take only geneID and sampleIDs
-write.csv2(dex.enrich.anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual_only_dex_enriched.csv"))
+write.csv2(dex.enrich.anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual_only_dex_e.csv"))
+```
 
+```{r}
 # veh.enrich <- out.edger %>% 
 #                 filter(FDR < 0.05 & Fold < 0) %>% 
 #                 select(seqnames, start, end)
