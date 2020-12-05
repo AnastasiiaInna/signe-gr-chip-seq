@@ -325,18 +325,19 @@ dba.plotBox(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 # write.table(out.edger, file = paste0(result.dir.fn, "dex_edge_report.txt"), sep = "\t", quote = F, row.names = F)
 ```
 
-Write BED files for each set of significant regions identified by edgeR, separating them based on the gain or loss of enrichment. 
+Write BED files for each set of significant regions identified by DeSeq, separating them based on the gain or loss of enrichment. 
 
 ```{r, include=FALSE}
-dex.enrich <- out.edger %>% 
-                filter(FDR < 0.05 & Fold > 0) %>% 
-                select(seqnames, start, end)
-  
-write.table(dex.enrich, file = paste0(result.dir.fn, "dex_enriched.bed"), sep = "\t", quote = F, row.names = F, col.names = F)
+dex.enrich.df <- annotation.df  %>% filter(FDR < 0.1 & Fold > 0) 
 
-veh.enrich <- out.edger %>% 
-                filter(FDR < 0.05 & Fold < 0) %>% 
-                select(seqnames, start, end)
+write.table(dex.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated_only_dex_echriched.csv"), sep = "\t", quote = F, row.names = F, col.names = F)
 
-write.table(veh.enrich, file = paste0(result.dir.fn, "veh_enriched.bed"), sep = "\t", quote = F, row.names = F, col.names = F)
+dex.enrich.anno.rasqual.df <- dex.enrich.df[,c(113, 12:106)] # take only geneID and sampleIDs
+write.csv2(dex.enrich.anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual_only_dex_enriched.csv"))
+
+# veh.enrich <- out.edger %>% 
+#                 filter(FDR < 0.05 & Fold < 0) %>% 
+#                 select(seqnames, start, end)
+# 
+# write.table(veh.enrich, file = paste0(result.dir.fn, "veh_enriched.bed"), sep = "\t", quote = F, row.names = F, col.names = F)
 ```
