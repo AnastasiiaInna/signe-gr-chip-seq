@@ -3,7 +3,6 @@ title: 'Allele-specific ChiPseq analysis'
 author: 'Anastasiia Hryhorzhevska'
 output:
   pdf_document: default
-  html_document: default
 ---
 
 
@@ -68,6 +67,9 @@ setwd(wd)
 result.dir.fn <- paste0(wd, "03_result/")
 
 sample.sheet.fn <- paste0(wd, "01_sample_sheets/chipseq_diffbind_sample_sheet_local.csv")
+```
+
+```{r}
 samples <- read.csv2(sample.sheet.fn, head = T)[, -11]
 ```
 ```{r}
@@ -78,7 +80,7 @@ head(samples, 5)
 
 ```{r, warning=FALSE}
 dba.db <- dba(sampleSheet = samples)
-dba.save(dba.db, file = "Signe_ChIPseq", dir = result.dir.fn)
+# dba.save(dba.db, file = "Signe_ChIPseq", dir = result.dir.fn)
 ```
 ```{r, warning=FALSE}
 # load(paste0(result.dir.fn, "dba_Signe_ChIPseq"))
@@ -254,12 +256,15 @@ dba.dif.anal.deseq <- dba.analyze(dba.contrast, method = DBA_DESEQ2)
 dba.dif.anal.deseq$config$th <- 0.10
 ```
 
-9. Retrieve the dif bound sites
+9. Retrieve the differentially bound sites
 
 ```{r}
 dex.report <- dba.report(dba.dif.anal.deseq, contrast = 2, method = DBA_DESEQ2, th = dba.dif.anal.deseq$config$th, 
                                                 bCounts = T, bCalled = T) # file = paste0(result.dir.fn, "dex_deseq_report.csv"))
-write.csv2(dex.report, file = paste0(result.dir.fn, "dex_deseq_report.csv"))
+write.csv2(dex.report, file = paste0(result.dir.fn, "dex_deseq_report.csv"), row.names = F)
+
+# dex.report <- read.csv2(paste0(result.dir.fn, "dex_deseq_report.csv"))
+
 head(dex.report)
 
 ```
@@ -273,6 +278,11 @@ The number of differentially bound sites that have enriched in DEX samples :
 
 ```{r}
 sum(dex.report$Fold > 0)
+```
+
+The number of differentially bound sites that have enriched in VEH samples :
+```{r}
+sum(dex.report$Fold < 0)
 ```
 
 10. Quantification for edgeR
@@ -297,14 +307,62 @@ dex.anno.report <- ChIPseeker::annotatePeak(dex.report, tssRegion = c(-1000, 100
 dex.anno.report
 ```
 
-12. Extract annoted count matrix for RASQUAL
+12. Export data
 
+12.1. Export annotated data 
 ```{r}
 annotation.df   <- as.data.frame(dex.anno.report@anno)
-write.csv2(annotation.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated.csv"))
+write.csv2(annotation.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated.csv"), row.names = F)
 
 anno.rasqual.df <- annotation.df[,c(113, 12:106)] # take only geneID and sampleIDs
-write.csv2(anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual.csv"))
+write.csv2(anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual.csv"), row.names = F)
+```
+
+12.2 Export only dex and veh enriched results
+
+```{r warning=FALSE, include=FALSE}
+count.mtrx.df <- as.data.frame(dex.report)
+```
+
+Write files for each set of significant regions identified by DeSeq, separating them based on the gain or loss of enrichment. 
+
+DEX:
+```{r, warning=FALSE}
+dex.enrich.df <- count.mtrx.df  %>% filter(FDR < 0.1 & Fold > 0) 
+write.csv2(dex.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_only_dex_echriched.csv"), row.names = F)
+
+veh.enrich.df <- count.mtrx.df  %>% filter(FDR < 0.1 & Fold < 0) 
+write.csv2(veh.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_only_veh_echriched.csv"), row.names = F)
+```
+
+12.3. Export count matrices for RASQUAL
+
+DEX:
+```{r}
+count.mtrx.dex.rasqual <- read.csv2(paste0(result.dir.fn, "count_mtrx_dex_for_rasqual.csv"))
+dex.samples <- c("PEAKSET_ID", c(read.table(paste0(result.dir.fn, "chipseq_dex_samples.txt")))[[1]])
+count.mtrx.dex.rasqual.out <- count.mtrx.dex.rasqual[dex.samples]
+
+write.table(count.mtrx.dex.rasqual[2:nrow(count.mtrx.dex.rasqual.out), ], paste0(result.dir.fn, "count_mtrx_dex_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
+
+write.table(count.mtrx.dex.rasqual[2:nrow(count.mtrx.dex.rasqual.out), ], paste0("/Users/anastasiia_hry/github/rasqual/data/signe_chipseq/", "count_mtrx_dex_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
+```
+
+VEH:
+```{r}
+# count.mtrx.veh.rasqual <- read.csv2(paste0(result.dir.fn, "count_mtrx_veh_for_rasqual_2.csv"))
+# veh.samples <- c("PEAKSET_ID", c(read.table(paste0(result.dir.fn, "chipseq_veh_samples.txt")))[[1]])
+# count.mtrx.veh.rasqual.out <- count.mtrx.dex.rasqual[veh.samples]
+# 
+# write.table(count.mtrx.veh.rasqual[2:nrow(count.mtrx.veh.rasqual.out), ], paste0(result.dir.fn, "count_mtrx_veh_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
+# 
+# write.table(count.mtrx.veh.rasqual[2:nrow(count.mtrx.veh.rasqual.out), ], paste0("/Users/anastasiia_hry/github/rasqual/data/signe_chipseq/", "count_mtrx_veh_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
+```
+
+```{r, include=FALSE}
+
+# dex.enrich.rasqual.df <- dex.enrich.df[,c(113, 12:106)] # take only geneID and sampleIDs
+# write.csv2(dex.enrich.anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual_only_dex.csv"), row.names = F)
 ```
 
 13. Plotting
@@ -323,28 +381,3 @@ dba.plotVolcano(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 dba.plotBox(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 ```
 
-14. Export only dex enriched results
-
-```{r warning=FALSE, include=FALSE}
-# out.edger <- as.data.frame(dex.report)
-# write.table(out.edger, file = paste0(result.dir.fn, "dex_edge_report.txt"), sep = "\t", quote = F, row.names = F)
-```
-
-Write files for each set of significant regions identified by DeSeq, separating them based on the gain or loss of enrichment. 
-
-```{r, warning=FALSE}
-dex.enrich.df <- annotation.df  %>% filter(FDR < 0.1 & Fold > 0) 
-
-write.csv2(dex.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated_only_dex_echriched.csv"))
-
-dex.enrich.anno.rasqual.df <- dex.enrich.df[,c(113, 12:106)] # take only geneID and sampleIDs
-write.csv2(dex.enrich.anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual_only_dex_e.csv"))
-```
-
-```{r}
-# veh.enrich <- out.edger %>% 
-#                 filter(FDR < 0.05 & Fold < 0) %>% 
-#                 select(seqnames, start, end)
-# 
-# write.table(veh.enrich, file = paste0(result.dir.fn, "veh_enriched.bed"), sep = "\t", quote = F, row.names = F, col.names = F)
-```
