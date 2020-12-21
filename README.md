@@ -284,15 +284,7 @@ The number of differentially bound sites that have enriched in VEH samples :
 ```{r}
 sum(dex.report$Fold < 0)
 ```
-
-10. Quantification for edgeR
-
-```{r}
-counts.edger <- dba.dif.anal$edgeR$DEdata$counts
-```
-
-
-11. Peaks annotation
+10. Peaks annotation
 
 ```{r}
 #  This is the refeernce anno used: /ngs/references/human/GRCh38/Homo_sapiens.GRCh38.97.gtf
@@ -307,9 +299,9 @@ dex.anno.report <- ChIPseeker::annotatePeak(dex.report, tssRegion = c(-1000, 100
 dex.anno.report
 ```
 
-12. Export data
+11. Export data
 
-12.1. Export annotated data 
+11.1. Export annotated data 
 ```{r}
 annotation.df   <- as.data.frame(dex.anno.report@anno)
 write.csv2(annotation.df, file = paste0(result.dir.fn, "dex_deseq_report_annotated.csv"), row.names = F)
@@ -318,7 +310,7 @@ anno.rasqual.df <- annotation.df[,c(113, 12:106)] # take only geneID and sampleI
 write.csv2(anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual.csv"), row.names = F)
 ```
 
-12.2 Export only dex and veh enriched results
+11.2 Export only dex and veh enriched results
 
 ```{r warning=FALSE, include=FALSE}
 count.mtrx.df <- as.data.frame(dex.report)
@@ -335,7 +327,7 @@ veh.enrich.df <- count.mtrx.df  %>% filter(FDR < 0.1 & Fold < 0)
 write.csv2(veh.enrich.df, file = paste0(result.dir.fn, "dex_deseq_report_only_veh_echriched.csv"), row.names = F)
 ```
 
-12.3. Export count matrices for RASQUAL
+11.3. Export count matrices for RASQUAL
 
 DEX:
 ```{r}
@@ -350,33 +342,27 @@ write.table(count.mtrx.dex.rasqual[2:nrow(count.mtrx.dex.rasqual.out), ], paste0
 
 VEH:
 ```{r}
-# count.mtrx.veh.rasqual <- read.csv2(paste0(result.dir.fn, "count_mtrx_veh_for_rasqual_2.csv"))
-# veh.samples <- c("PEAKSET_ID", c(read.table(paste0(result.dir.fn, "chipseq_veh_samples.txt")))[[1]])
-# count.mtrx.veh.rasqual.out <- count.mtrx.dex.rasqual[veh.samples]
-# 
-# write.table(count.mtrx.veh.rasqual[2:nrow(count.mtrx.veh.rasqual.out), ], paste0(result.dir.fn, "count_mtrx_veh_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
-# 
-# write.table(count.mtrx.veh.rasqual[2:nrow(count.mtrx.veh.rasqual.out), ], paste0("/Users/anastasiia_hry/github/rasqual/data/signe_chipseq/", "count_mtrx_veh_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
+count.mtrx.veh.rasqual <- read.csv2(paste0(result.dir.fn, "count_mtrx_veh_for_rasqual_2.csv"))
+ veh.samples <- c("PEAKSET_ID", c(read.table(paste0(result.dir.fn, "chipseq_veh_samples.txt")))[[1]])
+ count.mtrx.veh.rasqual.out <- count.mtrx.dex.rasqual[veh.samples]
+ 
+ write.table(count.mtrx.veh.rasqual[2:nrow(count.mtrx.veh.rasqual.out), ], paste0(result.dir.fn, "count_mtrx_veh_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
+ 
+ write.table(count.mtrx.veh.rasqual[2:nrow(count.mtrx.veh.rasqual.out), ], paste0("/Users/anastasiia_hry/github/rasqual/data/signe_chipseq/", "count_mtrx_veh_for_rasqual.txt"), sep="\t", row.names = F, col.names = F, quote = F)
 ```
 
-```{r, include=FALSE}
+12. Plotting
 
-# dex.enrich.rasqual.df <- dex.enrich.df[,c(113, 12:106)] # take only geneID and sampleIDs
-# write.csv2(dex.enrich.anno.rasqual.df, file = paste0(result.dir.fn, "dex_deseq_anno_count_mtrx_for_rasqual_only_dex.csv"), row.names = F)
-```
-
-13. Plotting
-
-13.1 PCA
+12.1 PCA
 
 ```{r}
 dba.plotPCA(dba.dif.anal.deseq, method = DBA_DESEQ2, attributes = DBA_CONDITION, label = DBA_TREATMENT, contrast = 2)
 ```
-13.2. Volcano 
+12.2. Volcano 
 ```{r}
 dba.plotVolcano(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 ```
-13.3. Boxplot
+12.3. Boxplot
 ```{r}
 dba.plotBox(dba.dif.anal.deseq, method = DBA_DESEQ2, contrast = 2)
 ```
