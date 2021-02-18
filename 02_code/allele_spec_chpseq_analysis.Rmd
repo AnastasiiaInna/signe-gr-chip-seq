@@ -156,19 +156,22 @@ To determine which peaks are “valid”, we perform overlap peaksets analysis f
 3.1. Dex group
 
 ```{r}
-dba.overlap(dba.db, dba.db$masks$dex, mode=DBA_OLAP_RATE)
+or.dex <- dba.overlap(dba.db, dba.db$masks$dex, mode=DBA_OLAP_RATE)
+or.dex
 ```
 47 consensus peaksets were identified for dex group, 37'757 of which is the total number of unique sites, 21'482 - the number of unique sites appearing in at least two peaksets, 16'679 -  the number of sites overlapping in at least three peaksets, etc.
 
 ```{r}
-dba.overlap(dba.db, dba.db$masks$dex & dba.db$masks$high, mode=DBA_OLAP_RATE)
+or.dex.high <- dba.overlap(dba.db, dba.db$masks$dex & dba.db$masks$high, mode=DBA_OLAP_RATE)
+or.dex.high
 ```
 24 consensus peaksets were identified for dex group, 24'355 of which is the total number of unique sites, 11'496 - the number of unique sites appearing in at least two peaksets, 7'477 -  the number of sites overlapping in at least three peaksets, etc.
 
 3.2. Veh group
 
 ```{r, warning = FALSE}
-dba.overlap(dba.db, dba.db$masks$veh, mode=DBA_OLAP_RATE)
+or.veh <- dba.overlap(dba.db, dba.db$masks$veh, mode=DBA_OLAP_RATE)
+or.veh
 ```
 48 consensus peaksets were identified for dex group, 21'486 of which is the total number of unique sites, 8'772 - the number of unique sites appearing in at least two peaksets, 5'760 -  the number of sites overlapping in at least three peaksets, etc.
 
@@ -176,17 +179,82 @@ dba.overlap(dba.db, dba.db$masks$veh, mode=DBA_OLAP_RATE)
 dba.overlap(dba.db, dba.db$masks$veh & dba.db$masks$high, mode=DBA_OLAP_RATE)
 ```
 
+
 4. Create separate consensus peaksets for each of the two treatments (veh and dex), then take the union of these two peaksets as the overall consensus
 
 Requiring that consensus peaks overlap in at least 20% of the samples in each group results in 3039 sites for the veh group and 11'128 sites for the dex group:
 
 ```{r, warning = FALSE}
-dba.consensus <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.2)
+dba.consensus.minolap.0  <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.)
+dba.consensus.minolap.01 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.1)
+dba.consensus.minolap.02 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.2)
+dba.consensus.minolap.03 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.3)
+# dba.consensus
+```
+
+```{r}
+dba.consensus <- dba.consensus.minolap.0
 dba.consensus
 ```
 
 ```{r}
-dba.plotVenn(dba.consensus, dba.consensus$masks$Consensus)
+dba.plotVenn(dba.consensus, dba.consensus$masks$Consensus, main = "Treatment consensus overlap")
+```
+
+```{r}
+dba.ol <- dba.overlap(dba.consensus, dba.consensus$masks$Consensus)
+dba.ol$onlyA
+dba.ol$onlyB
+dba.ol$inAll
+```
+
+```{r}
+
+pdf(file = paste0(result.dir.fn, "02_Overlap_rates.pdf"))
+    
+ggplot(as.data.frame(or.dex), aes(y = or.dex, x = 1:length(or.dex))) +
+  geom_line(linetype = "dashed")+
+  geom_point() + 
+  ylab("Nr of binding sites") + 
+  xlab("Overlaps at leats this many peaks") +
+  ggtitle("Overlap rate for DEX") +
+  theme(legend.position = "bottom")
+
+ggplot(as.data.frame(or.veh), aes(y = or.veh, x = 1:length(or.veh))) +
+  geom_line(linetype = "dashed")+
+  geom_point() + 
+  ylab("Nr of binding sites") + 
+  xlab("Overlaps at leats this many peaks") +
+  ggtitle("Overlap rate for VEH") +
+  theme(legend.position = "bottom")
+
+dba.plotVenn(dba.consensus.minolap.0, dba.consensus$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0")
+dba.plotVenn(dba.consensus.minolap.01, dba.consensus$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0.1")
+dba.plotVenn(dba.consensus.minolap.02, dba.consensus$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0.2")
+dba.plotVenn(dba.consensus.minolap.03, dba.consensus$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0.3")
+dev.off()
+```
+
+
+extra
+
+```{r}
+counts.df <- dba.count(dba.db, bRemoveDuplicates = F, score = DBA_SCORE_READS, minOverlap = 1)  
+# dba.plotHeatmap(counts.df)
+counts.df <- dba.contrast(counts.df, categories = DBA_TREATMENT, minMembers = 47)
+counts.df <- dba.analyze(counts.df)
+counts.df
+
+# Plot correlation heatmap based on the results of the analysis
+# using only differentially bound sites
+dba.plotHeatmap(counts.df, contrast = 1)
+
+# Plot PCA
+dba.plotPCA(counts.df, DBA_TREATMENT, label = DBA_CONDITION)
+# Plot PCA with only differentially bound sites
+dba.plotPCA(counts.df, contrast = 1,label = DBA_TREATMENT)
+
+
 ```
 
 5. Merge peakset list
