@@ -46,6 +46,8 @@ if(!require(dplyr))
   install.packages("dplyr")
 library(dplyr)
 
+library(ggplot2)
+
 ```
 
 ```{r, include=FALSE}
@@ -61,12 +63,15 @@ library(dplyr)
 1. Read in sampleSheet
 
 ```{r, warning=FALSE}
-wd <- "/Users/anastasiia_hry/github/mpip/signe_chip-seq/"
+wd <- "/Users/anastasiia_hry/bio/code/mpip/signe_chip-seq/"
 setwd(wd)
 
-result.dir.fn <- paste0(wd, "03_result/")
+result.dir.fn  <- paste0(wd, "03_result/")
 
+read.counts.fn  <- paste0(wd, "01_sample_sheets/read_counts.txt")
 sample.sheet.fn <- paste0(wd, "01_sample_sheets/chipseq_diffbind_sample_sheet_local.csv")
+
+bind.sites.read.counts.fn <- paste0(result.dir.fn, "bind_sites_read_counts.csv")
 ```
 
 ```{r}
@@ -78,15 +83,71 @@ head(samples, 5)
 
 2. Create and save a DBA object
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, echo=FALSE}
 dba.db <- dba(sampleSheet = samples)
-# dba.save(dba.db, file = "Signe_ChIPseq", dir = result.dir.fn)
+saveRDS(dba.db, file = paste0(result.dir.fn, "dba_ChIPseq_obj_Signe.rds"))
 ```
-```{r, warning=FALSE}
-# load(paste0(result.dir.fn, "dba_Signe_ChIPseq"))
+```{r, warning=FALSE,  echo=FALSE}
+dba.db        <- readRDS(paste0(result.dir.fn, "dba_ChIPseq_obj_Signe.rds"))
 dba.db
 ```
 This shows how many peaks are in each peakset, as well as total number of unique peaks after merging overlapping ones (44'967) and the default binding matrix of 95 samples by the 24'124 sites that overlap in at least two of the samples.
+
+```{r, warning=FALSE,  echo=FALSE}
+read.counts.df <- read.table(read.counts.fn, header = T)
+bind.sites.df  <- dba.show(dba.db, attributes = c(DBA_DATA_RANGEDDATA, DBA_TREATMENT, DBA_INTERVALS))
+
+bind.sites.read.counts.df <- left_join(bind.sites.df, read.counts.df, by = c("ID" = "SampleID", "Treatment" = "Treatment")) %>% 
+  dplyr::select(ID, Intervals, ReadsNr, Treatment)
+
+write.csv2(bind.sites.read.counts.df, bind.sites.read.counts.fn, row.names = F, col.names = T)
+```
+
+```{r, warning=FALSE,  echo=FALSE}
+df.scaled <- bind.sites.read.counts.df
+df.scaled$Intervals <- scale(df.scaled$Intervals)
+df.scaled$ReadsNr <- scale(df.scaled$ReadsNr)
+
+bind.sites.read.counts.veh.df <- df.scaled[df.scaled$Treatment == "veh", ]
+bind.sites.read.counts.dex.df <- df.scaled[df.scaled$Treatment == "dex", ]
+
+pdf(file = paste0(result.dir.fn, "01_Exploratory_analysis.pdf"))
+    
+ggplot(df.scaled, aes(Intervals, ReadsNr, col = Treatment)) +
+  geom_point() +
+  xlab("Nr of binding sites") + 
+  ylab("Nr of reads") +
+  ggtitle("Normalized data") +
+  theme(legend.position = "bottom")
+
+ggplot(bind.sites.read.counts.dex.df, aes(Intervals, ReadsNr, col = as.factor(1))) +
+  geom_point(colour = 'indianred1') +
+  xlab("Nr of binding sites") + 
+  ylab("Nr of reads") +
+  ggtitle("DEX: Normalized data") +
+  theme(legend.position = "none")
+
+ggplot(bind.sites.read.counts.veh.df, aes(Intervals, ReadsNr)) +
+  geom_point(colour = 'deepskyblue2') +
+  xlab("Nr of binding sites") + 
+  ylab("Nr of reads") + 
+  ggtitle("VEH: Normalized data") +
+  theme(legend.position = "none")
+
+ggplot(bind.sites.read.counts.df, aes(x = Treatment, y = Intervals, fill = Treatment)) +
+  geom_boxplot() + 
+  ylab("Nr of binding sites") +
+  theme(legend.position = "none")
+
+ggplot(bind.sites.read.counts.df, aes(x = Intervals, fill = Treatment)) + 
+  geom_density(alpha=.3) +
+  xlab("Nr of binding sites") +
+  theme(legend.position = "bottom")
+
+dev.off()
+
+
+```
 
 3. Peaksets overlap rate
 
