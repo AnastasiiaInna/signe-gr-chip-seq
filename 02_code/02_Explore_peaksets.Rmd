@@ -1,101 +1,191 @@
 ---
-title: 'Allele-specific ChiPseq analysis. Explore peaksets'
-author: 'Anastasiia Hryhorzhevska'
+title: "Allele-specific ChiPseq analysis. Explore peaksets"
+author: "Anastasiia Hryhorzhevska"
 output:
-  pdf_document: default
+  html_document:
+    df_print: paged
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
 
 ```{r, warning=FALSE, message=FALSE, include=FALSE}
 if (!requireNamespace("BiocManager", quietly = TRUE)){
   install.packages("BiocManager")
   BiocManager::install(version = "3.12")
 }
-  
-if (!require(DiffBind))
-  BiocManager::install("DiffBind")
+
 library(DiffBind)  
-
 library(GenomicFeatures)
-
-if (!require(ChIPseeker))
-  BiocManager::install("ChIPseeker")
 library(ChIPseeker) 
+library(ggplot2)
 ```
 
 ```{r, include=FALSE}
 wd <- "/Users/anastasiia_hry/bio/code/mpip/signe_chip-seq/"
 setwd(wd)
 
-result.dir.fn  <- paste0(wd, "03_result/")
+result.dir.fn  <- paste0(wd, "03_results/")
 ```
+
+```{r, include=FALSE}
+dba.db <- readRDS(paste0(result.dir.fn, "dba_ChIPseq_obj_Signe.rds"))
+```
+
+
+# 3. Peaksets overlap rate
+
+To determine which peaks are “valid”, we perform overlap peaksets analysis for each group (dex and veh) separately.
+
+## 3.1. DEX group
+
+47 consensus peaksets were identified for dex group, 37'757 of which is the total number of unique sites, 21'482 - the number of unique sites appearing in at least two peaksets, 16'679 -  the number of sites overlapping in at least three peaksets, etc.
+
+```{r}
+or.dex <- dba.overlap(dba.db, dba.db$masks$dex, mode=DBA_OLAP_RATE)
+or.dex
+```
+
+```{r}
+ggplot(as.data.frame(or.dex), aes(y = or.dex, x = 1:length(or.dex))) +
+  geom_line(linetype = "dashed")+
+  geom_point() + 
+  ylab("Nr of binding sites") + 
+  xlab("Overlaps at leats this many peaks") +
+  ggtitle("Overlap rate for DEX") +
+  theme(legend.position = "bottom")
+```
+
+```{r, include=FALSE}
+or.dex.high <- dba.overlap(dba.db, dba.db$masks$dex & dba.db$masks$high, mode=DBA_OLAP_RATE)
+# 24 consensus peaksets were identified for dex group, 24'355 of which is the total number of unique sites, 11'496 - the number of unique sites appearing in at least two peaksets, 7'477 -  the number of sites overlapping in at least three peaksets, etc.
+or.dex.high
+```
+
+## 3.2. VEH group
+
+48 consensus peaksets were identified for dex group, 21'486 of which is the total number of unique sites, 8'772 - the number of unique sites appearing in at least two peaksets, 5'760 -  the number of sites overlapping in at least three peaksets, etc.
+
+```{r, warning = FALSE}
+or.veh <- dba.overlap(dba.db, dba.db$masks$veh, mode=DBA_OLAP_RATE)
+or.veh
+```
+
+```{r}
+ggplot(as.data.frame(or.veh), aes(y = or.veh, x = 1:length(or.veh))) +
+  geom_line(linetype = "dashed")+
+  geom_point() + 
+  ylab("Nr of binding sites") + 
+  xlab("Overlaps at leats this many peaks") +
+  ggtitle("Overlap rate for VEH") +
+  theme(legend.position = "bottom")
+```
+
+```{r, include=FALSE}
+# dba.overlap(dba.db, dba.db$masks$veh & dba.db$masks$high, mode=DBA_OLAP_RATE)
+```
+
+## 3.3. Create separate consensus peaksets for each of the two treatments (veh and dex)
+
+
+### Requiring that consensus peaks overlap in at least 0% of the samples in each group results:
+
+```{r, warning = FALSE, echo = FALSE}
+dba.consensus.minolap.0  <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.)
+dba.plotVenn(dba.consensus.minolap.0, dba.consensus.minolap.0 $masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0")
+```
+
+### Requiring that consensus peaks overlap in at least 10% of the samples in each group results:
+
+```{r, warning = FALSE}
+dba.consensus.minolap.01 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.1)
+dba.plotVenn(dba.consensus.minolap.01, dba.consensus.minolap.01$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0.1")
+```
+
+### Requiring that consensus peaks overlap in at least 20% of the samples in each group results:
+
+```{r, warning = FALSE}
+dba.consensus.minolap.02 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.2)
+dba.plotVenn(dba.consensus.minolap.02, dba.consensus.minolap.02$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0.2")
+```
+
+### Requiring that consensus peaks overlap in at least 30% of the samples in each group results:
+
+```{r, warning = FALSE}
+dba.consensus.minolap.03 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), minOverlap = 0.3)
+dba.plotVenn(dba.consensus.minolap.03, dba.consensus.minolap.03$masks$Consensus, main = "Treatment consensus overlap, minOverlap = 0.3")
+```
+
+## 3.4. Explore peakssets 
 
 ```{r, include=FALSE}
 granges.list <- readRDS(paste0(result.dir.fn, "GRanges_overkal_0_ChIPseq_obj_Signe.rds"))
 ```
 
-# 3.4.1. Explore DEX
+### 3.4.1. Explore DEX
 
 ```{r, include=FALSE}
 grange.dex <- granges.list$dex
 ```
 
-## 3.4.1.1. Mean, median, and max size of the peaks
+#### 3.4.1.1. Mean, median, and max size of the peaks
 
 ```{r}
 summary(width(grange.dex))
 ```
 
-## 3.4.1.2. Distribution of peak sizes
+#### 3.4.1.2. Distribution of peak sizes
 
 ```{r}
 hist(width(grange.dex), xlab = "DEX peak size", col = "gray", main = "Distribution of DEX peak size")
 ```
 
-## 3.4.1.3 Distribution of peak p-values
+#### 3.4.1.3 Distribution of peak p-values
 
 ```{r}
 p.values <- score(grange.dex)
 hist(p.values, xlab = "-log_10(p-value)", col = "gray", main = "Distribution of p-values for DEX")
 ```
 
-# 3.4.2. Explore VEH
+### 3.4.2. Explore VEH
 
 ```{r, include=FALSE}
 grange.veh <- granges.list$veh
 ```
 
-## 3.4.2.1. Mean, median, and max size of the peaks
+#### 3.4.2.1. Mean, median, and max size of the peaks
 
 ```{r}
 summary(width(grange.veh))
 ```
 
-## 3.4.2.2. Distribution of peak sizes
+#### 3.4.2.2. Distribution of peak sizes
 
 ```{r}
 hist(width(grange.veh), xlab = "VEH peak size", col = "gray", main = "Distribution of VEH peak size")
 ```
 
-## 3.4.1.3 Distribution of peak p-values
+#### 3.4.1.3 Distribution of peak p-values
 
 ```{r}
 p.values <- score(grange.veh)
 hist(p.values, xlab = "-log_10(p-value)", col = "gray", main = "Distribution of p-values for VEH")
 ```
 
-# 3.4.1. Explore OVERLAPs
+### 3.4.3. Explore OVERLAPs
 
 ```{r, include=FALSE}
 grange.olap <- granges.list$`veh-dex`
 ```
 
-## 3.4.1.1. Mean, median, and max size of the peaks
+#### 3.4.3.1. Mean, median, and max size of the peaks
 
 ```{r}
 summary(width(grange.olap))
 ```
 
-## 3.4.1.2. Distribution of peak sizes
+#### 3.4.3.2. Distribution of peak sizes
 
 ```{r}
 hist(width(grange.olap), xlab = "Peak size", col = "gray", main = "Distribution of overlapped peak size")
