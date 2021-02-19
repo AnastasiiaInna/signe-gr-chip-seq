@@ -1,14 +1,8 @@
----
-title: 'Allele-specific ChiPseq analysis'
-author: 'Anastasiia Hryhorzhevska'
-output:
-  pdf_document: default
----
+# __Allele-specific ChiPseq analysis__
 
+_by Anastasiia Hryhorzhevska_
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+## This README will be updated
 
 1) Creation of a union peak list/set with DiffBind: 
   a) Peak filtering
