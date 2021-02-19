@@ -1,0 +1,106 @@
+---
+title: 'Allele-specific ChiPseq analysis. Explore peaksets'
+author: 'Anastasiia Hryhorzhevska'
+output:
+  pdf_document: default
+---
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)){
+  install.packages("BiocManager")
+  BiocManager::install(version = "3.12")
+}
+  
+if (!require(DiffBind))
+  BiocManager::install("DiffBind")
+library(DiffBind)  
+
+library(GenomicFeatures)
+
+if (!require(ChIPseeker))
+  BiocManager::install("ChIPseeker")
+library(ChIPseeker) 
+```
+
+```{r, include=FALSE}
+wd <- "/Users/anastasiia_hry/bio/code/mpip/signe_chip-seq/"
+setwd(wd)
+
+result.dir.fn  <- paste0(wd, "03_result/")
+```
+
+```{r, include=FALSE}
+granges.list <- readRDS(paste0(result.dir.fn, "GRanges_overkal_0_ChIPseq_obj_Signe.rds"))
+```
+
+# 3.4.1. Explore DEX
+
+```{r, include=FALSE}
+grange.dex <- granges.list$dex
+```
+
+## 3.4.1.1. Mean, median, and max size of the peaks
+
+```{r}
+summary(width(grange.dex))
+```
+
+## 3.4.1.2. Distribution of peak sizes
+
+```{r}
+hist(width(grange.dex), xlab = "DEX peak size", col = "gray", main = "Distribution of DEX peak size")
+```
+
+## 3.4.1.3 Distribution of peak p-values
+
+```{r}
+p.values <- score(grange.dex)
+hist(p.values, xlab = "-log_10(p-value)", col = "gray", main = "Distribution of p-values for DEX")
+```
+
+# 3.4.2. Explore VEH
+
+```{r, include=FALSE}
+grange.veh <- granges.list$veh
+```
+
+## 3.4.2.1. Mean, median, and max size of the peaks
+
+```{r}
+summary(width(grange.veh))
+```
+
+## 3.4.2.2. Distribution of peak sizes
+
+```{r}
+hist(width(grange.veh), xlab = "VEH peak size", col = "gray", main = "Distribution of VEH peak size")
+```
+
+## 3.4.1.3 Distribution of peak p-values
+
+```{r}
+p.values <- score(grange.veh)
+hist(p.values, xlab = "-log_10(p-value)", col = "gray", main = "Distribution of p-values for VEH")
+```
+
+# 3.4.1. Explore OVERLAPs
+
+```{r, include=FALSE}
+grange.olap <- granges.list$`veh-dex`
+```
+
+## 3.4.1.1. Mean, median, and max size of the peaks
+
+```{r}
+summary(width(grange.olap))
+```
+
+## 3.4.1.2. Distribution of peak sizes
+
+```{r}
+hist(width(grange.olap), xlab = "Peak size", col = "gray", main = "Distribution of overlapped peak size")
+```
+
+
+
+
