@@ -68,8 +68,8 @@ setwd(wd)
 
 result.dir.fn  <- paste0(wd, "03_result/")
 
-read.counts.fn  <- paste0(wd, "01_sample_sheets/read_counts.txt")
-sample.sheet.fn <- paste0(wd, "01_sample_sheets/chipseq_diffbind_sample_sheet_local.csv")
+read.counts.fn  <- paste0(wd, "01_sourse_data/read_counts.txt")
+sample.sheet.fn <- paste0(wd, "01_sourse_data/chipseq_diffbind_sample_sheet_local.csv")
 
 bind.sites.read.counts.fn <- paste0(result.dir.fn, "bind_sites_read_counts.csv")
 ```
@@ -78,14 +78,14 @@ bind.sites.read.counts.fn <- paste0(result.dir.fn, "bind_sites_read_counts.csv")
 samples <- read.csv2(sample.sheet.fn, head = T)[, -11]
 ```
 ```{r}
-head(samples, 5)
+# head(samples, 5)
 ```
 
 2. Create and save a DBA object
 
 ```{r, warning=FALSE, echo=FALSE}
-dba.db <- dba(sampleSheet = samples)
-saveRDS(dba.db, file = paste0(result.dir.fn, "dba_ChIPseq_obj_Signe.rds"))
+# dba.db <- dba(sampleSheet = samples)
+# saveRDS(dba.db, file = paste0(result.dir.fn, "dba_ChIPseq_obj_Signe.rds"))
 ```
 ```{r, warning=FALSE,  echo=FALSE}
 dba.db        <- readRDS(paste0(result.dir.fn, "dba_ChIPseq_obj_Signe.rds"))
@@ -180,7 +180,7 @@ dba.overlap(dba.db, dba.db$masks$veh & dba.db$masks$high, mode=DBA_OLAP_RATE)
 ```
 
 
-4. Create separate consensus peaksets for each of the two treatments (veh and dex), then take the union of these two peaksets as the overall consensus
+3.3. Create separate consensus peaksets for each of the two treatments (veh and dex), then take the union of these two peaksets as the overall consensus
 
 Requiring that consensus peaks overlap in at least 20% of the samples in each group results in 3039 sites for the veh group and 11'128 sites for the dex group:
 
@@ -194,19 +194,95 @@ dba.consensus.minolap.03 <- dba.peakset(dba.db, consensus = c(DBA_TREATMENT), mi
 
 ```{r}
 dba.consensus <- dba.consensus.minolap.0
-dba.consensus
+# dba.consensus
 ```
 
 ```{r}
 dba.plotVenn(dba.consensus, dba.consensus$masks$Consensus, main = "Treatment consensus overlap")
 ```
 
+##3.4. Explore peaksets
 ```{r}
 dba.ol <- dba.overlap(dba.consensus, dba.consensus$masks$Consensus)
 dba.ol$onlyA
 dba.ol$onlyB
 dba.ol$inAll
+
+# granges <- c(dba.ol$onlyA, dba.ol$onlyB, dba.ol$inAll)
+granges.list <- GRangesList("veh" = dba.ol$onlyA, "dex" = dba.ol$onlyB, "veh-dex" = dba.ol$inAll)
+saveRDS(granges.list, file = paste0(result.dir.fn, "GRanges_overkal_0_ChIPseq_obj_Signe.rds"))
 ```
+
+```{r}
+granges.list <- readRDS(paste0(result.dir.fn, "GRanges_overkal_0_ChIPseq_obj_Signe.rds"))
+```
+
+#3.4.1. Explore DEX
+
+```{r}
+grange.dex <- granges.list$dex
+```
+
+# 3.4.1.1. Mean, median, and max size of the peaks?
+
+```{r}
+summary(width(grange.dex))
+```
+
+# 3.4.1.2. Distribution of peak sizes?
+
+```{r}
+hist(width(grange.dex), xlab = "DEX peak size", col = "gray", main = "Distribution of DEX peak size")
+```
+#3.4.1.3 Distribution of peak p-values?
+
+```{r}
+p.values <- score(grange.dex)
+hist(p.values, xlab = "-log_10(p-value)", col = "gray", main = "Distribution of p-values for DEX")
+```
+
+#3.4.2. Explore VEH
+
+```{r}
+grange.veh <- granges.list$veh
+```
+
+# 3.4.2.1. Mean, median, and max size of the peaks?
+
+```{r}
+summary(width(grange.veh))
+```
+
+# 3.4.2.2. Distribution of peak sizes?
+
+```{r}
+hist(width(grange.veh), xlab = "VEHX peak size", col = "gray", main = "Distribution of VEH peak size")
+```
+#3.4.1.3 Distribution of peak p-values?
+
+```{r}
+p.values <- score(grange.veh)
+hist(p.values, xlab = "-log_10(p-value)", col = "gray", main = "Distribution of p-values for VEH")
+```
+#3.4.1. Explore OVERLAPs
+
+```{r}
+grange.olap <- granges.list$`veh-dex`
+```
+
+# 3.4.1.1. Mean, median, and max size of the peaks?
+
+```{r}
+summary(width(grange.olap))
+```
+
+# 3.4.1.2. Distribution of peak sizes?
+
+```{r}
+hist(width(grange.olap), xlab = "Peak size", col = "gray", main = "Distribution of overlapped peak size")
+```
+
+
 
 ```{r}
 
