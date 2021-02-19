@@ -6,6 +6,10 @@ output:
     df_print: paged
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
 ```{r, warning=FALSE, message=FALSE, include=FALSE}
 if (!requireNamespace("BiocManager", quietly = TRUE)){
   install.packages("BiocManager")
@@ -22,7 +26,7 @@ library(dplyr)
 wd <- "/Users/anastasiia_hry/bio/code/mpip/signe_chip-seq/"
 setwd(wd)
 
-result.dir    <- paste0(wd, "03_result/")
+result.dir    <- paste0(wd, "03_results/")
 src.data.dir  <- paste0(wd, "01_source_data/") 
 starr.data.fn <- paste0(src.data.dir, "01_allele_dependent_STARR.txt") 
 grsnp.data.fn <- paste0(src.data.dir, "02_GR_SNPs_hg19.txt") 
@@ -39,7 +43,7 @@ grsnp.df <- read.csv(grsnp.data.fn, sep = "\t")
 
 # 2. Convert STARR and GR SNP data into GRange object
 
-## 2.1. Convert STARR
+## 2.1. STARR data
 
 ```{r}
 starr.df$chr <- substr(starr.df$chr, 4, length(starr.df$chr))
@@ -54,7 +58,7 @@ names(starr) <- starr.df$name
 starr
 ```
 
-## 2.2. Convert GR SNP
+## 2.2.GR-SNP data
 
 ```{r}
 grsnp <- GRanges(
@@ -69,7 +73,9 @@ grsnp
 
 # 3. Overlap STARR data with peaksets
 
-## No overlaps for veh or veh-dex peaksets
+## 3.1. Check if SNPs are in the binding dits DEX
+
+##### For veh or veh-dex peaksets, there is no SNPs in the binding sites
 
 ```{r}
 r1 <- starr
@@ -94,7 +100,7 @@ r1[names(hits),]
 r2[hits, ]
 ```
 
-## Find the distances to the nearest SNP for each peak for dex
+## Find the distances to the nearest SNP for each peak for DEX
 
 ```{r}
 nearest(r1, r2)[1:20]
@@ -143,7 +149,7 @@ starr.bs.df <- cbind(starr.dist, as.data.frame(r2[hits, ]@seqnames), as.data.fra
 colnames(starr.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
 starr.bs.df["TREATMENT"] <- "DEX"
 starr.bs.df <- starr.bs.df[order(starr.bs.df$DIST), ]
-starr.bs.df[1:10, ]
+starr.bs.df
 
 # write.csv2(starr.bs.df, paste0(result.dir, "01_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_DEX.csv"), row.names = T)
 ```
@@ -177,7 +183,7 @@ starr.bs.df <- cbind(starr.dist, as.data.frame(r2[hits, ]@seqnames), as.data.fra
 colnames(starr.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
 starr.bs.df["TREATMENT"] <- "VEH"
 starr.bs.df <- starr.bs.df[order(starr.bs.df$DIST), ]
-starr.bs.df[1:10, ]
+starr.bs.df
 
  # write.csv2(starr.bs.df, paste0(result.dir, "02_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH.csv"), row.names = T)
 ```
@@ -211,7 +217,7 @@ starr.bs.df <- cbind(starr.dist, as.data.frame(r2[hits, ]@seqnames), as.data.fra
 colnames(starr.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
 starr.bs.df["TREATMENT"] <- "VEH-DEX"
 starr.bs.df <- starr.bs.df[order(starr.bs.df$DIST), ]
-starr.bs.df[1:10, ]
+starr.bs.df
 
 # write.csv2(starr.bs.df, paste0(result.dir, "03_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH-DEX.csv"), row.names = T)
 ```
@@ -271,7 +277,7 @@ grsnp.bs.df <- cbind(grsnp.dist, as.data.frame(r2[hits, ]@seqnames), as.data.fra
 colnames(grsnp.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
 grsnp.bs.df["TREATMENT"] <- "DEX"
 grsnp.bs.df <- grsnp.bs.df[order(grsnp.bs.df$DIST), ]
-grsnp.bs.df[1:30, ]
+grsnp.bs.df
 
 # write.csv2(grsnp.bs.df, paste0(result.dir, "04_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_DEX.csv"), row.names = T)
 ```
@@ -303,12 +309,12 @@ grsnp.dist <- cbind(as.data.frame(r1[names(hits), ]), dists) %>%
   dplyr::select(CHR, POS, DIST) 
 
 grsnp.bs.df <- cbind(grsnp.dist, as.data.frame(r2[hits, ]@seqnames), as.data.frame(r2[hits, ]@ranges))
-colnames(starr.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
+colnames(grsnp.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
 grsnp.bs.df["TREATMENT"] <- "VEH"
 grsnp.bs.df <- grsnp.bs.df[order(grsnp.bs.df$DIST), ]
-grsnp.bs.df[1:20, ]
+grsnp.bs.df
 
-# write.csv2(grsnp.bs.df, paste0(result.dir, "05_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH.csv"), row.names = T)
+write.csv2(grsnp.bs.df, paste0(result.dir, "05_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH.csv"), row.names = T)
 ```
 
 ## Find the distances to the nearest SNP for each peak for DEX-VEH
@@ -338,10 +344,10 @@ grsnp.dist <- cbind(as.data.frame(r1[names(hits), ]), dists) %>%
   dplyr::select(CHR, POS, DIST) 
 
 grsnp.bs.df <- cbind(grsnp.dist, as.data.frame(r2[hits, ]@seqnames), as.data.frame(r2[hits, ]@ranges))
-colnames(starr.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
+colnames(grsnp.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
 grsnp.bs.df["TREATMENT"] <- "VEH-DEX"
 grsnp.bs.df <- grsnp.bs.df[order(grsnp.bs.df$DIST), ]
-grsnp.bs.df[1:20, ]
+grsnp.bs.df
 
-# write.csv2(grsnp.bs.df, paste0(result.dir, "06_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH_DEX.csv"), row.names = T)
+write.csv2(grsnp.bs.df, paste0(result.dir, "06_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH_DEX.csv"), row.names = T)
 ```
