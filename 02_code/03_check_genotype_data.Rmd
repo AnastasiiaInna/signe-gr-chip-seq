@@ -54,21 +54,26 @@ starr <- GRanges(
   strand = "*"
 )
 
+
+starr <- makeGRangesFromDataFrame(starr.df, start.field = "position", end.field = "position", seqnames.field = c("chr"))
 names(starr) <- starr.df$name
-starr
+starr.hg38 <- deepblue_liftover(starr, source = "hg19", target = "hg38", collapse = T)
+# seqnames(starr.hg38) <- substr(seqnames(starr.hg38), 4, length(seqnames(starr.hg38)))
+seqlevels(starr.hg38) <- substr(seqlevels(starr.hg38), 4, length(seqlevels(starr.hg38)))
+starr.hg38
 ```
 
 ## 2.2.GR-SNP data
 
 ```{r}
-grsnp <- GRanges(
-  grsnp.df$CHROM,
-  IRanges(start = grsnp.df$POS, end = grsnp.df$POS),
-  strand = "*"
-)
-
+grsnp.df$CHROM <- paste0("chr", grsnp.df$CHROM)
+grsnp <- makeGRangesFromDataFrame(grsnp.df, start.field = "POS", end.field = "POS", seqnames.field = c("CHROM"))
 names(grsnp) <- grsnp.df$ID
-grsnp
+grsnp.hg38 <- deepblue_liftover(grsnp , source = "hg19", target = "hg38", collapse = T)
+# seqnames(starr.hg38) <- substr(seqnames(starr.hg38), 4, length(seqnames(starr.hg38)))
+seqlevels(grsnp.hg38) <- substr(seqlevels(grsnp.hg38), 4, length(seqlevels(grsnp.hg38)))
+starr.hg38
+
 ```
 
 # 3. Overlap STARR data with peaksets
@@ -78,7 +83,7 @@ grsnp
 ##### For veh or veh-dex peaksets, there is no SNPs in the binding sites
 
 ```{r}
-r1 <- starr
+r1 <- starr.hg38
 r2 <- peaks.list$dex
 overlap <- findOverlaps(r1, r2, select = "all")
 overlap
