@@ -66,7 +66,7 @@ library(ggplot2)
 wd <- "/Users/anastasiia_hry/bio/code/mpip/signe_chip-seq/"
 setwd(wd)
 
-result.dir.fn  <- paste0(wd, "03_result/")
+result.dir.fn  <- paste0(wd, "03_results/")
 
 read.counts.fn  <- paste0(wd, "01_sourse_data/read_counts.txt")
 sample.sheet.fn <- paste0(wd, "01_sourse_data/chipseq_diffbind_sample_sheet_local.csv")

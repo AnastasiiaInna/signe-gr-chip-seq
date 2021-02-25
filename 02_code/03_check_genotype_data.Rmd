@@ -20,6 +20,10 @@ library(DiffBind)
 library(GenomicFeatures)
 library(GenomicRanges)
 library(dplyr)
+library(DeepBlueR)
+library(mltools)
+library(ggplot2)
+library(ggrepel)
 ```
 
 ```{r, include=FALSE}
@@ -27,6 +31,7 @@ wd <- "/Users/anastasiia_hry/bio/code/mpip/signe_chip-seq/"
 setwd(wd)
 
 result.dir    <- paste0(wd, "03_results/")
+report.dir    <- paste0(wd, "04_reports/")
 src.data.dir  <- paste0(wd, "01_source_data/") 
 starr.data.fn <- paste0(src.data.dir, "01_allele_dependent_STARR.txt") 
 grsnp.data.fn <- paste0(src.data.dir, "02_GR_SNPs_hg19.txt") 
@@ -41,20 +46,11 @@ starr.df <- read.csv(starr.data.fn, sep = "\t")
 grsnp.df <- read.csv(grsnp.data.fn, sep = "\t")
 ```
 
-# 2. Convert STARR and GR SNP data into GRange object
+# 2. Convert STARR and GR SNP data into hg38 GRange object
 
 ## 2.1. STARR data
 
 ```{r}
-starr.df$chr <- substr(starr.df$chr, 4, length(starr.df$chr))
-
-starr <- GRanges(
-  starr.df$chr,
-  IRanges(start = starr.df$position, end = starr.df$position),
-  strand = "*"
-)
-
-
 starr <- makeGRangesFromDataFrame(starr.df, start.field = "position", end.field = "position", seqnames.field = c("chr"))
 names(starr) <- starr.df$name
 starr.hg38 <- deepblue_liftover(starr, source = "hg19", target = "hg38", collapse = T)
@@ -66,21 +62,19 @@ starr.hg38
 ## 2.2.GR-SNP data
 
 ```{r}
-grsnp.df$CHROM <- paste0("chr", grsnp.df$CHROM)
+grsnp.df$CHROM <- paste0("chr", grsnp.df$CHROM) #, 4, length(grsnp.df$CHROM))
 grsnp <- makeGRangesFromDataFrame(grsnp.df, start.field = "POS", end.field = "POS", seqnames.field = c("CHROM"))
 names(grsnp) <- grsnp.df$ID
 grsnp.hg38 <- deepblue_liftover(grsnp , source = "hg19", target = "hg38", collapse = T)
 # seqnames(starr.hg38) <- substr(seqnames(starr.hg38), 4, length(seqnames(starr.hg38)))
 seqlevels(grsnp.hg38) <- substr(seqlevels(grsnp.hg38), 4, length(seqlevels(grsnp.hg38)))
-starr.hg38
+grsnp.hg38
 
 ```
 
 # 3. Overlap STARR data with peaksets
 
-## 3.1. Check if SNPs are in the binding dits DEX
-
-##### For veh or veh-dex peaksets, there is no SNPs in the binding sites
+## Check if SNPs are in the unique for DEX binding sites 
 
 ```{r}
 r1 <- starr.hg38
@@ -96,6 +90,8 @@ hits <- names(r2)[subjectHits(overlap)]
 names(hits) <- names(r1)[queryHits(overlap)]
 hits
 ```
+
+Manually check that it works well
 
 ```{r}
 r1[names(hits),]
@@ -132,11 +128,11 @@ names(hits) <- names(r1)[queryHits(dist.to.nearest.obj)]
 hits[1:3 ]
 ```
 
-```{r}
+```{r, include=F}
 r1[names(hits)[1], ]
 ```
 
-```{r}
+```{r, include=F}
 r2[hits[1], ]
 ```
 
@@ -148,7 +144,7 @@ Combine SNP, sites and distances into one dataframe
 
 starr.dist <- cbind(as.data.frame(r1[names(hits), ]), dists) %>% 
  mutate(CHR = seqnames, POS = start, DIST = dists) %>% 
- select(CHR, POS, DIST) 
+ dplyr::select(CHR, POS, DIST) 
 
 starr.bs.df <- cbind(starr.dist, as.data.frame(r2[hits, ]@seqnames), as.data.frame(r2[hits, ]@ranges))
 colnames(starr.bs.df) <- c("CHR", "POS", "DIST", "PEAK_CHR", "PEAK_START", "PEAK_END", "PEAK_WIDTH", "PEAK_NAME")
@@ -156,13 +152,29 @@ starr.bs.df["TREATMENT"] <- "DEX"
 starr.bs.df <- starr.bs.df[order(starr.bs.df$DIST), ]
 starr.bs.df
 
-# write.csv2(starr.bs.df, paste0(result.dir, "01_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_DEX.csv"), row.names = T)
+write.csv2(starr.bs.df, paste0(result.dir, "01_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_DEX.csv"), row.names = T)
+```
+
+Plot frequencies:
+
+```{r}
+starr.bs.bins <- data.frame(DistanceInterval = bin_data(data.table::data.table(starr.bs.df), binCol = "DIST", bins = c(0, 1, 1001, 2001, 3001, 4001, 5001, Inf), returnDT = F))
+levels(starr.bs.bins$DistanceInterval) <- c("0", "(0; 1000]", "(1000; 2000]", "(2000; 3000]", "(3000; 4000]", "(4000; 5000]", "[5000; Inf)")
+
+ggplot(starr.bs.bins, aes(DistanceInterval)) + 
+  geom_bar(fill = "grey") +
+  stat_count(geom = "text", 
+             aes(label = stat(count)),
+             position=position_nudge_repel(), colour="black") +
+  ylab("No. SNPs") + 
+  xlab("Distance Interval, bp") +
+  ggtitle("Distribution of the STARR SNPs across the DEX binding sites\n0 - the SNP is located inside the binding site",)
 ```
 
 ## Find the distances to the nearest SNP for each peak for VEH
 
 ```{r}
-r1 <- starr
+r1 <- starr.hg38
 r2 <- peaks.list$veh
 dist.to.nearest.obj <- distanceToNearest(r1, r2)
 dists <- dist.to.nearest.obj@elementMetadata@listData$distance
@@ -190,13 +202,30 @@ starr.bs.df["TREATMENT"] <- "VEH"
 starr.bs.df <- starr.bs.df[order(starr.bs.df$DIST), ]
 starr.bs.df
 
- # write.csv2(starr.bs.df, paste0(result.dir, "02_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH.csv"), row.names = T)
+write.csv2(starr.bs.df, paste0(result.dir, "02_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH.csv"), row.names = T)
 ```
 
-## Find the distances to the nearest SNP for each peak for VEH
+Plot frequencies:
 
 ```{r}
-r1 <- starr
+
+starr.bs.bins <- data.frame(DistanceInterval = bin_data(data.table::data.table(starr.bs.df), binCol = "DIST", bins = c(0, 1, 1001, 2001, 3001, 4001, 5001, Inf), returnDT = F))
+levels(starr.bs.bins$DistanceInterval) <- c("0", "(0; 1000]", "(1000; 2000]", "(2000; 3000]", "(3000; 4000]", "(4000; 5000]", "[5000; Inf)")
+
+ggplot(starr.bs.bins, aes(DistanceInterval)) + 
+  geom_bar(fill = "grey") +
+  stat_count(geom = "text", 
+             aes(label = stat(count)),
+             position=position_nudge_repel(), colour="black") +
+  ylab("No. SNPs") + 
+  xlab("Distance Interval, bp") +
+  ggtitle("Distribution of the STARR SNPs across the VEH binding sites\n0 - the SNP is located inside the binding site",)
+```
+
+## Find the distances to the nearest SNP for each peak for VEH-DEX
+
+```{r}
+r1 <- starr.hg38
 r2 <- peaks.list$`veh-dex`
 dist.to.nearest.obj <- distanceToNearest(r1, r2)
 dists <- dist.to.nearest.obj@elementMetadata@listData$distance
@@ -224,13 +253,31 @@ starr.bs.df["TREATMENT"] <- "VEH-DEX"
 starr.bs.df <- starr.bs.df[order(starr.bs.df$DIST), ]
 starr.bs.df
 
-# write.csv2(starr.bs.df, paste0(result.dir, "03_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH-DEX.csv"), row.names = T)
+write.csv2(starr.bs.df, paste0(result.dir, "03_STARR_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH_DEX.csv"), row.names = T)
+```
+
+Plot frequencies:
+
+```{r}
+
+starr.bs.bins <- data.frame(DistanceInterval = bin_data(data.table::data.table(starr.bs.df), binCol = "DIST", bins = c(0, 1, 1001, 2001, 3001, 4001, 5001, Inf), returnDT = F))
+levels(starr.bs.bins$DistanceInterval) <- c("0", "(0; 1000]", "(1000; 2000]", "(2000; 3000]", "(3000; 4000]", "(4000; 5000]", "[5000; Inf)")
+
+ggplot(starr.bs.bins, aes(DistanceInterval)) + 
+  geom_bar(fill = "grey") +
+  stat_count(geom = "text", 
+             aes(label = stat(count)),
+             position=position_nudge_repel(), colour="black") +
+  ylab("No. SNPs") + 
+  xlab("Distance Interval, bp") +
+  ggtitle("Distribution of the STARR SNPs across the VEH-DEX binding sites\n0 - the SNP is located inside the binding site",)
+
 ```
 
 # 4. Overlap all GR-SNPs data with peaksets
 
 ```{r}
-r1 <- grsnp
+r1 <- grsnp.hg38
 r2 <- peaks.list$dex
 overlap <- findOverlaps(r1, r2, select = "all")
 overlap
@@ -255,7 +302,7 @@ r2[hits, ]
 ## Find the distances to the nearest SNP for each peak for DEX
 
 ```{r}
-r1 <- grsnp
+r1 <- grsnp.hg38
 r2 <- peaks.list$dex
 dist.to.nearest.obj <- distanceToNearest(r1, r2)
 dists <- dist.to.nearest.obj@elementMetadata@listData$distance
@@ -284,13 +331,30 @@ grsnp.bs.df["TREATMENT"] <- "DEX"
 grsnp.bs.df <- grsnp.bs.df[order(grsnp.bs.df$DIST), ]
 grsnp.bs.df
 
-# write.csv2(grsnp.bs.df, paste0(result.dir, "04_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_DEX.csv"), row.names = T)
+write.csv2(grsnp.bs.df, paste0(result.dir, "04_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_DEX.csv"), row.names = T)
+```
+
+Plot frequencies:
+
+```{r}
+
+grsnp.bs.bins <- data.frame(DistanceInterval = bin_data(data.table::data.table(grsnp.bs.df), binCol = "DIST", bins = c(0, 1, 1001, 2001, 3001, 4001, 5001, Inf), returnDT = F))
+levels(grsnp.bs.bins$DistanceInterval) <- c("0", "(0; 1000]", "(1000; 2000]", "(2000; 3000]", "(3000; 4000]", "(4000; 5000]", "[5000; Inf)")
+
+ggplot(grsnp.bs.bins, aes(DistanceInterval)) + 
+  geom_bar(fill = "grey") +
+  stat_count(geom = "text", 
+             aes(label = stat(count)),
+             position=position_nudge_repel(), colour="black") +
+  ylab("No. SNPs") + 
+  xlab("Distance Interval, bp") +
+  ggtitle("Distribution of the GR-SNPs across the DEX binding sites\n0 - the SNP is located inside the binding site",)
 ```
 
 ## Find the distances to the nearest SNP for each peak for VEH
 
 ```{r}
-r1 <- grsnp
+r1 <- grsnp.hg38
 r2 <- peaks.list$veh
 dist.to.nearest.obj <- distanceToNearest(r1, r2)
 dists <- dist.to.nearest.obj@elementMetadata@listData$distance
@@ -322,10 +386,27 @@ grsnp.bs.df
 write.csv2(grsnp.bs.df, paste0(result.dir, "05_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH.csv"), row.names = T)
 ```
 
+Plot frequencies:
+
+```{r}
+
+grsnp.bs.bins <- data.frame(DistanceInterval = bin_data(data.table::data.table(grsnp.bs.df), binCol = "DIST", bins = c(0, 1, 1001, 2001, 3001, 4001, 5001, Inf), returnDT = F))
+levels(grsnp.bs.bins$DistanceInterval) <- c("0", "(0; 1000]", "(1000; 2000]", "(2000; 3000]", "(3000; 4000]", "(4000; 5000]", "[5000; Inf)")
+
+ggplot(grsnp.bs.bins, aes(DistanceInterval)) + 
+  geom_bar(fill = "grey") +
+  stat_count(geom = "text", 
+             aes(label = stat(count)),
+             position=position_nudge_repel(), colour="black") +
+  ylab("No. SNPs") + 
+  xlab("Distance Interval, bp") +
+  ggtitle("Distribution of the GR-SNPs across the VEH binding sites\n0 - the SNP is located inside the binding site",)
+```
+
 ## Find the distances to the nearest SNP for each peak for DEX-VEH
 
 ```{r}
-r1 <- grsnp
+r1 <- grsnp.hg38
 r2 <- peaks.list$`veh-dex`
 dist.to.nearest.obj <- distanceToNearest(r1, r2)
 dists <- dist.to.nearest.obj@elementMetadata@listData$distance
@@ -355,4 +436,21 @@ grsnp.bs.df <- grsnp.bs.df[order(grsnp.bs.df$DIST), ]
 grsnp.bs.df
 
 write.csv2(grsnp.bs.df, paste0(result.dir, "06_GRSNP_SNP_TO_ChIP_BINDING_SITES_DISTANCES_VEH_DEX.csv"), row.names = T)
+```
+
+Plot frequencies:
+
+```{r}
+
+grsnp.bs.bins <- data.frame(DistanceInterval = bin_data(data.table::data.table(grsnp.bs.df), binCol = "DIST", bins = c(0, 1, 1001, 2001, 3001, 4001, 5001, Inf), returnDT = F))
+levels(grsnp.bs.bins$DistanceInterval) <- c("0", "(0; 1000]", "(1000; 2000]", "(2000; 3000]", "(3000; 4000]", "(4000; 5000]", "[5000; Inf)")
+
+ggplot(grsnp.bs.bins, aes(DistanceInterval)) + 
+  geom_bar(fill = "grey") +
+  stat_count(geom = "text", 
+             aes(label = stat(count)),
+             position=position_nudge_repel(), colour="black") +
+  ylab("No. SNPs") + 
+  xlab("Distance Interval, bp") +
+  ggtitle("Distribution of the GR-SNPs across the VEH-DEX binding sites\n0 - the SNP is located inside the binding site",)
 ```
